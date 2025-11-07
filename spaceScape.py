@@ -31,12 +31,12 @@ pygame.display.set_caption("🚀 Space Escape")
 # e troque apenas os nomes abaixo.
 
 ASSETS = {
-    "background": "fundo_espacial.png",                         # imagem de fundo
-    "player": "nave001.png",                                    # imagem da nave
+    "background": "fundo_espacial0.png",                         # imagem de fundo
+    "player": "nave002.png",                                    # imagem da nave
     "meteor": "meteoro001.png",                                 # imagem do meteoro
     "sound_point": "classic-game-action-positive-5-224402.mp3", # som ao desviar com sucesso
     "sound_hit": "stab-f-01-brvhrtz-224599.mp3",                # som de colisão
-    "music": "distorted-future-363866.mp3"          # música de fundo. direitos: Music by Maksym Malko from Pixabay
+    "music": "Madara_-_Theme.mp3"          # música de fundo.
 }
 
 # ----------------------------------------------------------
