@@ -209,6 +209,31 @@ class Laser:
         img = pygame.transform.scale(laserbeam_img, (self.rect.width, self.rect.height))
         surf.blit(img, self.rect)
 
+class Button:
+    def __init__(self, x, y, width, height, text, color=(100, 100, 255), text_color=(255, 255, 255)):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.text_color = text_color
+        self.hover_color = (150, 150, 255)
+        self.is_hovered = False
+
+    def draw(self, surf):
+        color = self.hover_color if self.is_hovered else self.color
+        pygame.draw.rect(surf, color, self.rect)
+        pygame.draw.rect(surf, WHITE, self.rect, 3)  # Bordas
+
+        font_btn = pygame.font.Font(None, 32)
+        txt = font_btn.render(self.text, True, self.text_color)
+        txt_rect = txt.get_rect(center=self.rect.center)
+        surf.blit(txt, txt_rect)
+
+    def is_clicked(self, pos):
+        return self.rect.collidepoint(pos)
+
+    def update_hover(self, pos):
+        self.is_hovered = self.rect.collidepoint(pos)
+
 class Meteor:
     def __init__(self, x, y, w, h, speed, behavior=None):
         self.rect = pygame.Rect(x, y, w, h)
@@ -322,8 +347,8 @@ class PhaseConfig:
 
 PHASES = {
     1: PhaseConfig(1, background_imgs[1], ASSETS["music1"], 5, 5, (40, 40), 30, []),
-    2: PhaseConfig(2, background_imgs[2], ASSETS["music2"], 7, 7, (50, 50), 70, ['accelerate']),
-    3: PhaseConfig(3, background_imgs[3], ASSETS["music3"], 10, 9, (60, 60), None, ['accelerate', 'zigzag'])
+    2: PhaseConfig(2, background_imgs[2], ASSETS["music2"], 7, 7, (50, 50), 150, ['accelerate']),
+    3: PhaseConfig(3, background_imgs[3], ASSETS["music3"], 10, 9, (60, 60), 999, ['accelerate', 'zigzag'])
 }
 
 def create_meteors_for_phase(cfg):
@@ -350,11 +375,17 @@ meteor_invincibility = MeteorInvincibility(0, 0, 45, 45, 4)
 try_play_music(phase_cfg.music)
 transition_timer = 0
 transition_duration = 90
+
+# Botões de game over
+btn_restart = Button(WIDTH//2 - 150, HEIGHT - 120, 140, 50, "REINICIAR")
+btn_exit = Button(WIDTH//2 + 10, HEIGHT - 120, 140, 50, "SAIR")
+
 running = True
 
 while running:
     clock.tick(FPS)
     keys = pygame.key.get_pressed()
+    mouse_pos = pygame.mouse.get_pos()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -374,6 +405,22 @@ while running:
                     try_play_music(phase_cfg.music)
                     state = 'playing'
                 elif event.key == pygame.K_ESCAPE:
+                    running = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if state == 'gameover':
+                if btn_restart.is_clicked(mouse_pos):
+                    # Reiniciar o jogo
+                    player = Player()
+                    current_phase = 1
+                    score = 0
+                    lives = 3
+                    phase_cfg = PHASES[current_phase]
+                    meteors = create_meteors_for_phase(phase_cfg)
+                    meteor_special.reset()
+                    meteor_invincibility.reset()
+                    try_play_music(phase_cfg.music)
+                    state = 'playing'
+                elif btn_exit.is_clicked(mouse_pos):
                     running = False
 
     if state == 'playing':
@@ -472,12 +519,20 @@ while running:
         big = pygame.font.Font(None, 48)
         txt_score = big.render(f"Pontuação Final: {score}", True, WHITE)
         txt_phase = big.render(f"Fase Alcançada: {current_phase}", True, WHITE)
-        txt_restart = pygame.font.Font(None, 36).render("Pressione SPACE para jogar novamente ou ESC para sair", True, WHITE)
 
-        # Posicionar textos no centro inferior da tela
-        screen.blit(txt_score, (WIDTH//2 - txt_score.get_width()//2, HEIGHT - 200))
-        screen.blit(txt_phase, (WIDTH//2 - txt_phase.get_width()//2, HEIGHT - 140))
-        screen.blit(txt_restart, (WIDTH//2 - txt_restart.get_width()//2, HEIGHT - 60))
+        # Posicionar textos no centro da tela
+        screen.blit(txt_score, (WIDTH//2 - txt_score.get_width()//2, HEIGHT//2 - 80))
+        screen.blit(txt_phase, (WIDTH//2 - txt_phase.get_width()//2, HEIGHT//2 - 20))
+
+        # Atualizar e desenhar botões
+        btn_restart.update_hover(mouse_pos)
+        btn_exit.update_hover(mouse_pos)
+        btn_restart.draw(screen)
+        btn_exit.draw(screen)
+
+        # Mensagem adicional
+        txt_info = pygame.font.Font(None, 28).render("ou pressione SPACE/ESC", True, WHITE)
+        screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT - 30))
 
     pygame.display.flip()
 
