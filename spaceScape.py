@@ -16,7 +16,9 @@ ASSETS = {
     "background2": "fundo_espacial2.png",
     "background3": "fundo_espacial3.png",
     "player": "nave001.png",
-    "meteor": "meteoro001.png",
+    "meteor1": "meteoro001.png",
+    "meteor2": "meteoro002.png",
+    "meteor3": "meteoro003.png",
     "sound_point": "classic-game-action-positive-5-224402.mp3",
     "sound_hit": "stab-f-01-brvhrtz-224599.mp3",
     "music1": "distorted-future-363866.mp3",
@@ -67,7 +69,11 @@ background_imgs = {
 }
 
 player_img = load_image(ASSETS["player"], BLUE, (80, 60))
-meteor_img = load_image(ASSETS["meteor"], RED, (40, 40))
+meteor_imgs = [
+    load_image(ASSETS["meteor1"], RED, (40, 40)),
+    load_image(ASSETS["meteor2"], RED, (40, 40)),
+    load_image(ASSETS["meteor3"], RED, (40, 40))
+]
 
 sound_point = load_sound(ASSETS["sound_point"])
 sound_hit = load_sound(ASSETS["sound_hit"])
@@ -104,6 +110,10 @@ class Meteor:
         self._phase = random.uniform(0, math.pi * 2)
         self._amp = random.randint(30, 80)
         self._hz = random.uniform(0.01, 0.04)
+        # Animação do sprite
+        self.frame_index = 0
+        self.frame_counter = 0
+        self.animation_speed = 5  # Número de updates antes de trocar frame
 
     def update(self):
         if self.behavior == 'zigzag':
@@ -113,13 +123,21 @@ class Meteor:
             self.speed += 0.02
         self.rect.y += int(self.speed)
 
+        # Atualizar animação
+        self.frame_counter += 1
+        if self.frame_counter >= self.animation_speed:
+            self.frame_index = (self.frame_index + 1) % len(meteor_imgs)
+            self.frame_counter = 0
+
     def reset(self):
         self.rect.y = random.randint(-500, -40)
         self.rect.x = random.randint(0, WIDTH - self.rect.width)
         self._phase = random.uniform(0, math.pi * 2)
+        self.frame_index = 0
+        self.frame_counter = 0
 
     def draw(self, surf):
-        img = pygame.transform.scale(meteor_img, (self.rect.width, self.rect.height))
+        img = pygame.transform.scale(meteor_imgs[self.frame_index], (self.rect.width, self.rect.height))
         surf.blit(img, self.rect)
 
 class PhaseConfig:
