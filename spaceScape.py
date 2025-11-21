@@ -20,6 +20,7 @@ ASSETS = {
     "meteor2": "meteoro002.png",
     "meteor3": "meteoro003.png",
     "meteor_special": "meteoroespecial.png",
+    "laserbeam": "laserbeam.png",
     "sound_point": "classic-game-action-positive-5-224402.mp3",
     "sound_hit": "stab-f-01-brvhrtz-224599.mp3",
     "music1": "distorted-future-363866.mp3",
@@ -76,6 +77,7 @@ meteor_imgs = [
     load_image(ASSETS["meteor3"], RED, (40, 40))
 ]
 meteor_special_img = load_image(ASSETS["meteor_special"], (255, 100, 0), (50, 50))
+laserbeam_img = load_image(ASSETS["laserbeam"], (0, 255, 0), (10, 30))
 
 sound_point = load_sound(ASSETS["sound_point"])
 sound_hit = load_sound(ASSETS["sound_hit"])
@@ -85,6 +87,8 @@ class Player:
         self.image = player_img
         self.rect = self.image.get_rect(center=(WIDTH // 2, HEIGHT - 60))
         self.speed = 7
+        self.lasers = []
+        self.shoot_cooldown = 0
 
     def update(self, keys):
         if keys[pygame.K_LEFT] and self.rect.left > 0:
@@ -101,8 +105,39 @@ class Player:
             elif self.rect.centerx > mx:
                 self.rect.centerx -= self.speed
 
+        # Disparar com SPACE ou clique do mouse
+        if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
+            self.shoot()
+            self.shoot_cooldown = 10
+
+        self.shoot_cooldown -= 1
+
+        # Atualizar lasers
+        for laser in self.lasers[:]:
+            laser.update()
+            if laser.rect.y < 0:
+                self.lasers.remove(laser)
+
+    def shoot(self):
+        laser = Laser(self.rect.centerx - 5, self.rect.top)
+        self.lasers.append(laser)
+
     def draw(self, surf):
         surf.blit(self.image, self.rect)
+        for laser in self.lasers:
+            laser.draw(surf)
+
+class Laser:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 10, 30)
+        self.speed = 10
+
+    def update(self):
+        self.rect.y -= self.speed
+
+    def draw(self, surf):
+        img = pygame.transform.scale(laserbeam_img, (self.rect.width, self.rect.height))
+        surf.blit(img, self.rect)
 
 class Meteor:
     def __init__(self, x, y, w, h, speed, behavior=None):
@@ -241,6 +276,16 @@ while running:
                 if lives <= 0:
                     state = 'gameover'
                     pygame.mixer.music.stop()
+
+            # Colisão entre laser e meteoro
+            for laser in player.lasers[:]:
+                if laser.rect.colliderect(m.rect):
+                    player.lasers.remove(laser)
+                    m.reset()
+                    score += 5
+                    if sound_point:
+                        sound_point.play()
+                    break
 
         # Atualizar meteoro especial
         meteor_special.update()
