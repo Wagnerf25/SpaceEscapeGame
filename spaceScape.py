@@ -23,6 +23,7 @@ ASSETS = {
     "meteor_invincibility": "meteorovermelho.png",
     "laserbeam": "laserbeam.png",
     "gameover": "Game-over.png",
+    "insertcoin": "insertcoin.png",
     "sound_point": "classic-game-action-positive-5-224402.mp3",
     "sound_hit": "stab-f-01-brvhrtz-224599.mp3",
     "music1": "distorted-future-363866.mp3",
@@ -110,6 +111,7 @@ meteor_special_img = load_image(ASSETS["meteor_special"], (255, 100, 0), (50, 50
 meteor_invincibility_img = load_image(ASSETS["meteor_invincibility"], (255, 0, 0), (45, 45))
 laserbeam_img = load_image(ASSETS["laserbeam"], (0, 255, 0), (10, 30))
 gameover_img = load_image(ASSETS["gameover"], (0, 0, 0), (WIDTH, HEIGHT))
+insertcoin_img = load_image(ASSETS["insertcoin"], (0, 0, 0), (WIDTH, HEIGHT))
 
 sound_point = load_sound(ASSETS["sound_point"])
 sound_hit = load_sound(ASSETS["sound_hit"])
@@ -367,7 +369,7 @@ player = Player()
 current_phase = 1
 score = 0
 lives = 3
-state = 'playing'
+state = 'menu'  # Mudar para 'menu' como estado inicial
 phase_cfg = PHASES[current_phase]
 meteors = create_meteors_for_phase(phase_cfg)
 meteor_special = MeteorSpecial(0, 0, 50, 50, 6)
@@ -380,6 +382,9 @@ transition_duration = 90
 btn_restart = Button(WIDTH//2 - 150, HEIGHT - 120, 140, 50, "REINICIAR")
 btn_exit = Button(WIDTH//2 + 10, HEIGHT - 120, 140, 50, "SAIR")
 
+# Botão de insert coin
+btn_insert_coin = Button(WIDTH//2 - 80, HEIGHT - 100, 160, 60, "INSERT COIN", (255, 100, 0), (255, 255, 255))
+
 running = True
 
 while running:
@@ -391,7 +396,13 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
-            if state == 'gameover':
+            if state == 'menu':
+                if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                    # Iniciar o jogo
+                    state = 'playing'
+                    pygame.mixer.music.stop()
+                    try_play_music(phase_cfg.music)
+            elif state == 'gameover':
                 if event.key == pygame.K_SPACE:
                     # Reiniciar o jogo
                     player = Player()
@@ -407,7 +418,13 @@ while running:
                 elif event.key == pygame.K_ESCAPE:
                     running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if state == 'gameover':
+            if state == 'menu':
+                if btn_insert_coin.is_clicked(mouse_pos):
+                    # Iniciar o jogo
+                    state = 'playing'
+                    pygame.mixer.music.stop()
+                    try_play_music(phase_cfg.music)
+            elif state == 'gameover':
                 if btn_restart.is_clicked(mouse_pos):
                     # Reiniciar o jogo
                     player = Player()
@@ -493,15 +510,29 @@ while running:
             try_play_music(phase_cfg.music)
             state = 'playing'
 
-    screen.blit(PHASES[current_phase].bg, (0, 0))
-    player.draw(screen)
-    for m in meteors:
-        m.draw(screen)
-    meteor_special.draw(screen)
-    meteor_invincibility.draw(screen)
+    # Renderização da tela de menu
+    if state == 'menu':
+        screen.blit(insertcoin_img, (0, 0))
 
-    hud = font.render(f"Pontos: {score}   Vidas: {lives}   Fase: {current_phase}", True, WHITE)
-    screen.blit(hud, (10, 10))
+        # Atualizar e desenhar botão INSERT COIN
+        btn_insert_coin.update_hover(mouse_pos)
+        btn_insert_coin.draw(screen)
+
+        # Mensagem adicional
+        txt_info = pygame.font.Font(None, 28).render("ou pressione SPACE para começar", True, WHITE)
+        screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT - 40))
+
+    # Renderização do jogo
+    elif state in ['playing', 'transition', 'gameover']:
+        screen.blit(PHASES[current_phase].bg, (0, 0))
+        player.draw(screen)
+        for m in meteors:
+            m.draw(screen)
+        meteor_special.draw(screen)
+        meteor_invincibility.draw(screen)
+
+        hud = font.render(f"Pontos: {score}   Vidas: {lives}   Fase: {current_phase}", True, WHITE)
+        screen.blit(hud, (10, 10))
 
     if state == 'transition':
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
