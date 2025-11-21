@@ -19,6 +19,7 @@ ASSETS = {
     "meteor1": "meteoro001.png",
     "meteor2": "meteoro002.png",
     "meteor3": "meteoro003.png",
+    "meteor_special": "meteoroespecial.png",
     "sound_point": "classic-game-action-positive-5-224402.mp3",
     "sound_hit": "stab-f-01-brvhrtz-224599.mp3",
     "music1": "distorted-future-363866.mp3",
@@ -74,6 +75,7 @@ meteor_imgs = [
     load_image(ASSETS["meteor2"], RED, (40, 40)),
     load_image(ASSETS["meteor3"], RED, (40, 40))
 ]
+meteor_special_img = load_image(ASSETS["meteor_special"], (255, 100, 0), (50, 50))
 
 sound_point = load_sound(ASSETS["sound_point"])
 sound_hit = load_sound(ASSETS["sound_hit"])
@@ -140,6 +142,37 @@ class Meteor:
         img = pygame.transform.scale(meteor_imgs[self.frame_index], (self.rect.width, self.rect.height))
         surf.blit(img, self.rect)
 
+class MeteorSpecial:
+    def __init__(self, x, y, w, h, speed):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.speed = speed
+        self.active = False
+        self.spawn_timer = 0
+        self.spawn_interval = 180  # 3 segundos a 60 FPS
+        self.is_falling = False
+
+    def update(self):
+        if not self.is_falling:
+            self.spawn_timer += 1
+            if self.spawn_timer >= self.spawn_interval:
+                self.spawn_timer = 0
+                self.is_falling = True
+                self.rect.y = -self.rect.height
+                self.rect.x = random.randint(0, WIDTH - self.rect.width)
+        else:
+            self.rect.y += int(self.speed)
+            if self.rect.y > HEIGHT:
+                self.is_falling = False
+
+    def reset(self):
+        self.is_falling = False
+        self.spawn_timer = 0
+
+    def draw(self, surf):
+        if self.is_falling:
+            img = pygame.transform.scale(meteor_special_img, (self.rect.width, self.rect.height))
+            surf.blit(img, self.rect)
+
 class PhaseConfig:
     def __init__(self, id, bg, music, meteor_count, meteor_speed, meteor_size, required_score, behaviors=None):
         self.id = id
@@ -176,6 +209,7 @@ lives = 3
 state = 'playing'
 phase_cfg = PHASES[current_phase]
 meteors = create_meteors_for_phase(phase_cfg)
+meteor_special = MeteorSpecial(0, 0, 50, 50, 6)
 try_play_music(phase_cfg.music)
 transition_timer = 0
 transition_duration = 90
@@ -208,6 +242,16 @@ while running:
                     state = 'gameover'
                     pygame.mixer.music.stop()
 
+        # Atualizar meteoro especial
+        meteor_special.update()
+        if meteor_special.is_falling and meteor_special.rect.colliderect(player.rect):
+            # Meteoro especial causa morte instantânea
+            lives = 0
+            state = 'gameover'
+            pygame.mixer.music.stop()
+            if sound_hit:
+                sound_hit.play()
+
         if PHASES[current_phase].required_score and score >= PHASES[current_phase].required_score:
             state = 'transition'
             transition_timer = 0
@@ -222,6 +266,7 @@ while running:
                 current_phase = 3
             phase_cfg = PHASES[current_phase]
             meteors = create_meteors_for_phase(phase_cfg)
+            meteor_special.reset()
             try_play_music(phase_cfg.music)
             state = 'playing'
 
@@ -229,6 +274,7 @@ while running:
     player.draw(screen)
     for m in meteors:
         m.draw(screen)
+    meteor_special.draw(screen)
 
     hud = font.render(f"Pontos: {score}   Vidas: {lives}   Fase: {current_phase}", True, WHITE)
     screen.blit(hud, (10, 10))
