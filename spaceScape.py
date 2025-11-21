@@ -95,6 +95,41 @@ def create_engine_frames():
 
     return frames
 
+def load_ranking():
+    """Carregar ranking do arquivo"""
+    ranking = []
+    if os.path.exists('ranking.txt'):
+        try:
+            with open('ranking.txt', 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        parts = line.split(',')
+                        if len(parts) == 2:
+                            name, score = parts
+                            ranking.append((name, int(score)))
+        except:
+            pass
+    return ranking
+
+def save_ranking(ranking):
+    """Salvar ranking no arquivo"""
+    try:
+        with open('ranking.txt', 'w') as f:
+            for name, score in ranking:
+                f.write(f"{name},{score}\n")
+    except:
+        pass
+
+def add_to_ranking(name, score):
+    """Adicionar jogador ao ranking"""
+    ranking = load_ranking()
+    ranking.append((name, score))
+    ranking.sort(key=lambda x: x[1], reverse=True)
+    ranking = ranking[:10]  # Manter apenas os top 10
+    save_ranking(ranking)
+    return ranking
+
 background_imgs = {
     1: load_image(ASSETS["background1"], (10, 10, 30), (WIDTH, HEIGHT)),
     2: load_image(ASSETS["background2"], (8, 8, 25), (WIDTH, HEIGHT)),
@@ -235,6 +270,48 @@ class Button:
 
     def update_hover(self, pos):
         self.is_hovered = self.rect.collidepoint(pos)
+
+class TextInput:
+    def __init__(self, x, y, width, height, max_length=15):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = ""
+        self.max_length = max_length
+        self.active = True
+        self.cursor_visible = True
+        self.cursor_timer = 0
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_RETURN:
+                return True  # Confirmar entrada
+            elif len(self.text) < self.max_length:
+                if event.unicode.isprintable():
+                    self.text += event.unicode.upper()
+        return False
+
+    def update(self):
+        self.cursor_timer += 1
+        if self.cursor_timer >= 30:
+            self.cursor_visible = not self.cursor_visible
+            self.cursor_timer = 0
+
+    def draw(self, surf):
+        # Desenhar caixa de entrada
+        pygame.draw.rect(surf, (50, 50, 50), self.rect)
+        pygame.draw.rect(surf, WHITE, self.rect, 3)
+
+        # Desenhar texto
+        font_input = pygame.font.Font(None, 40)
+        txt = font_input.render(self.text, True, WHITE)
+        txt_rect = txt.get_rect(center=self.rect.center)
+        surf.blit(txt, txt_rect)
+
+        # Desenhar cursor
+        if self.cursor_visible:
+            cursor_x = txt_rect.right + 5
+            pygame.draw.line(surf, WHITE, (cursor_x, self.rect.top + 10), (cursor_x, self.rect.bottom - 10), 2)
 
 class Meteor:
     def __init__(self, x, y, w, h, speed, behavior=None):
@@ -385,6 +462,12 @@ btn_exit = Button(WIDTH//2 + 10, HEIGHT - 120, 140, 50, "SAIR")
 # Botão de insert coin
 btn_insert_coin = Button(WIDTH//2 - 80, HEIGHT - 100, 160, 60, "INSERT COIN", (255, 100, 0), (255, 255, 255))
 
+# Input de nome para ranking
+text_input = TextInput(WIDTH//2 - 100, HEIGHT//2, 200, 50)
+
+# Variável para armazenar o ranking
+current_ranking = load_ranking()
+
 running = True
 
 while running:
@@ -413,10 +496,18 @@ while running:
                     meteors = create_meteors_for_phase(phase_cfg)
                     meteor_special.reset()
                     meteor_invincibility.reset()
+                    text_input.text = ""  # Limpar input de nome
                     try_play_music(phase_cfg.music)
                     state = 'playing'
                 elif event.key == pygame.K_ESCAPE:
                     running = False
+            elif state == 'name_input':
+                confirmed = text_input.handle_event(event)
+                if confirmed and text_input.text:
+                    # Adicionar ao ranking
+                    current_ranking = add_to_ranking(text_input.text, score)
+                    text_input.text = ""
+                    state = 'gameover'
         if event.type == pygame.MOUSEBUTTONDOWN:
             if state == 'menu':
                 if btn_insert_coin.is_clicked(mouse_pos):
@@ -457,7 +548,7 @@ while running:
                     if sound_hit:
                         sound_hit.play()
                     if lives <= 0:
-                        state = 'gameover'
+                        state = 'name_input'  # Mudar para entrada de nome
                         pygame.mixer.music.stop()
                 else:
                     m.reset()
@@ -477,7 +568,7 @@ while running:
         if meteor_special.is_falling and meteor_special.rect.colliderect(player.rect):
             # Meteoro especial causa morte instantânea
             lives = 0
-            state = 'gameover'
+            state = 'name_input'  # Mudar para entrada de nome
             pygame.mixer.music.stop()
             if sound_hit:
                 sound_hit.play()
@@ -523,7 +614,7 @@ while running:
         screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT - 40))
 
     # Renderização do jogo
-    elif state in ['playing', 'transition', 'gameover']:
+    elif state in ['playing', 'transition', 'gameover', 'name_input']:
         screen.blit(PHASES[current_phase].bg, (0, 0))
         player.draw(screen)
         for m in meteors:
@@ -542,6 +633,33 @@ while running:
         txt = big.render(f"Fase {current_phase + 1}", True, WHITE)
         screen.blit(txt, (WIDTH//2 - txt.get_width()//2, HEIGHT//2 - 40))
 
+    if state == 'name_input':
+        # Tela de entrada de nome
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        screen.blit(overlay, (0, 0))
+
+        # Título
+        big = pygame.font.Font(None, 60)
+        txt_title = big.render("GAME OVER", True, RED)
+        screen.blit(txt_title, (WIDTH//2 - txt_title.get_width()//2, HEIGHT//2 - 150))
+
+        # Pontuação
+        txt_score = pygame.font.Font(None, 36).render(f"Pontuação: {score}", True, WHITE)
+        screen.blit(txt_score, (WIDTH//2 - txt_score.get_width()//2, HEIGHT//2 - 60))
+
+        # Label para entrada de nome
+        txt_label = pygame.font.Font(None, 32).render("Digite seu nome:", True, WHITE)
+        screen.blit(txt_label, (WIDTH//2 - txt_label.get_width()//2, HEIGHT//2 + 20))
+
+        # Input de nome
+        text_input.update()
+        text_input.draw(screen)
+
+        # Instrução
+        txt_info = pygame.font.Font(None, 24).render("Pressione ENTER para confirmar", True, WHITE)
+        screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT//2 + 120))
+
     if state == 'gameover':
         # Exibir imagem de game over
         screen.blit(gameover_img, (0, 0))
@@ -554,6 +672,16 @@ while running:
         # Posicionar textos no centro da tela
         screen.blit(txt_score, (WIDTH//2 - txt_score.get_width()//2, HEIGHT//2 - 80))
         screen.blit(txt_phase, (WIDTH//2 - txt_phase.get_width()//2, HEIGHT//2 - 20))
+
+        # Exibir ranking
+        ranking_font = pygame.font.Font(None, 24)
+        ranking_y = 180
+        ranking_title = pygame.font.Font(None, 32).render("TOP 10 RANKING", True, WHITE)
+        screen.blit(ranking_title, (WIDTH//2 - ranking_title.get_width()//2, ranking_y - 40))
+
+        for idx, (name, points) in enumerate(current_ranking[:10], 1):
+            ranking_text = ranking_font.render(f"{idx:2d}. {name:15s} - {points:6d}", True, WHITE)
+            screen.blit(ranking_text, (WIDTH//2 - ranking_text.get_width()//2, ranking_y + (idx * 25)))
 
         # Atualizar e desenhar botões
         btn_restart.update_hover(mouse_pos)
