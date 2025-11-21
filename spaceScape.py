@@ -42,8 +42,8 @@ def load_image(filename, fallback_color, size=None):
             if size:
                 img = pygame.transform.scale(img, size)
             return img
-        except:
-            pass
+        except (pygame.error, OSError) as e:
+            print(f"Aviso: Não foi possível carregar imagem '{filename}': {e}")
     surf = pygame.Surface(size or (50, 50), pygame.SRCALPHA)
     surf.fill(fallback_color)
     return surf
@@ -52,7 +52,8 @@ def load_sound(filename):
     if filename and os.path.exists(filename):
         try:
             return pygame.mixer.Sound(filename)
-        except:
+        except (pygame.error, OSError) as e:
+            print(f"Aviso: Não foi possível carregar som '{filename}': {e}")
             return None
     return None
 
@@ -63,8 +64,8 @@ def try_play_music(filename, volume=0.3):
             pygame.mixer.music.set_volume(volume)
             pygame.mixer.music.play(-1)
             return True
-    except:
-        pass
+    except (pygame.error, OSError) as e:
+        print(f"Aviso: Não foi possível carregar música '{filename}': {e}")
     return False
 
 def create_engine_frames():
@@ -100,29 +101,39 @@ def load_ranking():
     ranking = []
     if os.path.exists('ranking.txt'):
         try:
-            with open('ranking.txt', 'r') as f:
+            with open('ranking.txt', 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
                     if line:
                         parts = line.split(',')
                         if len(parts) == 2:
-                            name, score = parts
-                            ranking.append((name, int(score)))
-        except:
-            pass
+                            try:
+                                name, score = parts[0].strip(), int(parts[1].strip())
+                                ranking.append((name, score))
+                            except ValueError:
+                                print(f"Aviso: Linha inválida no ranking: {line}")
+                                continue
+        except IOError as e:
+            print(f"Aviso: Não foi possível ler ranking.txt: {e}")
     return ranking
 
 def save_ranking(ranking):
     """Salvar ranking no arquivo"""
     try:
-        with open('ranking.txt', 'w') as f:
+        with open('ranking.txt', 'w', encoding='utf-8') as f:
             for name, score in ranking:
                 f.write(f"{name},{score}\n")
-    except:
-        pass
+    except IOError as e:
+        print(f"Erro: Não foi possível salvar ranking: {e}")
 
 def add_to_ranking(name, score):
     """Adicionar jogador ao ranking"""
+    # Validação de entrada
+    name = name.strip().upper()
+    if not name or not isinstance(score, int):
+        print("Erro: Nome ou pontuação inválidos")
+        return load_ranking()
+
     ranking = load_ranking()
     ranking.append((name, score))
     ranking.sort(key=lambda x: x[1], reverse=True)
@@ -170,21 +181,23 @@ class Player:
         self.engine_animation_speed = 2  # Velocidade de animação do motor
 
     def update(self, keys):
+        # Movimento com teclado
         if keys[pygame.K_LEFT] and self.rect.left > 0:
             self.rect.x -= self.speed
         if keys[pygame.K_RIGHT] and self.rect.right < WIDTH:
             self.rect.x += self.speed
 
+        # Movimento com mouse
         mx, _ = pygame.mouse.get_pos()
         if pygame.mouse.get_pressed()[0]:
-            self.rect.centerx = mx
+            self.rect.centerx = max(self.rect.width // 2, min(mx, WIDTH - self.rect.width // 2))
         elif abs(self.rect.centerx - mx) > 4:
             if self.rect.centerx < mx:
-                self.rect.centerx += self.speed
+                self.rect.centerx = min(self.rect.centerx + self.speed, WIDTH - self.rect.width // 2)
             elif self.rect.centerx > mx:
-                self.rect.centerx -= self.speed
+                self.rect.centerx = max(self.rect.centerx - self.speed, self.rect.width // 2)
 
-        # Disparar com SPACE ou clique do mouse
+        # Disparar com SPACE
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
             self.shoot()
             self.shoot_cooldown = 10
@@ -287,7 +300,8 @@ class TextInput:
             elif event.key == pygame.K_RETURN:
                 return True  # Confirmar entrada
             elif len(self.text) < self.max_length:
-                if event.unicode.isprintable():
+                # Aceitar apenas caracteres alfanuméricos e alguns símbolos
+                if event.unicode.isprintable() and event.unicode not in '\t\n\r':
                     self.text += event.unicode.upper()
         return False
 
@@ -304,13 +318,13 @@ class TextInput:
 
         # Desenhar texto
         font_input = pygame.font.Font(None, 40)
-        txt = font_input.render(self.text, True, WHITE)
+        txt = font_input.render(self.text if self.text else "___", True, WHITE)
         txt_rect = txt.get_rect(center=self.rect.center)
         surf.blit(txt, txt_rect)
 
         # Desenhar cursor
-        if self.cursor_visible:
-            cursor_x = txt_rect.right + 5
+        if self.cursor_visible and self.active:
+            cursor_x = txt_rect.right + 5 if self.text else self.rect.centerx
             pygame.draw.line(surf, WHITE, (cursor_x, self.rect.top + 10), (cursor_x, self.rect.bottom - 10), 2)
 
 class Meteor:
@@ -330,6 +344,8 @@ class Meteor:
         if self.behavior == 'zigzag':
             self._phase += self._hz
             self.rect.x += int(math.sin(self._phase) * 3)
+            # Manter dentro dos limites da tela
+            self.rect.x = max(0, min(self.rect.x, WIDTH - self.rect.width))
         elif self.behavior == 'accelerate':
             self.speed += 0.02
         self.rect.y += int(self.speed)
