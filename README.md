@@ -1,188 +1,767 @@
-🚀 Space Escape
-
-Um jogo de arcade "Shoot 'em Up" vertical desenvolvido em Python com Pygame.
-
-Space Escape é um jogo de sobrevivência espacial onde o jogador deve pilotar uma nave, desviar de chuvas de meteoros, utilizar power-ups e acumular a maior pontuação possível através de 3 fases de dificuldade progressiva.
-
-📋 Índice
-
-Sobre o Projeto
-
-Funcionalidades
-
-Pré-requisitos e Instalação
-
-Como Jogar
-
-Mecânicas e Fases
-
-Estrutura de Arquivos
-
-Autor
-
-📖 Sobre o Projeto
-
-Este projeto foi desenvolvido como parte de um trabalho acadêmico de implementação de jogos utilizando a biblioteca Pygame. O foco do desenvolvimento foi criar uma arquitetura de código limpa, com tratamento de erros robusto (I/O e Áudio) e mecânicas de jogo progressivas.
-
-O jogo conta com sistema de ranking persistente, animações procedurais (partículas do motor) e suporte a controles híbridos (Teclado e Mouse).
-
-✨ Funcionalidades
-
-Dificuldade Progressiva: 3 Fases com aumento de velocidade e novos comportamentos inimigos.
-
-Sistema de Ranking: As 10 melhores pontuações são salvas localmente em ranking.txt.
-
-Power-ups:
-
-🛡️ Invencibilidade: Imunidade temporária contra meteoros comuns.
-
-Inimigos Especiais:
-
-☠️ Meteoro Caveira: Causa morte instantânea ("Insta-kill").
-
-Efeitos Visuais: Animação do propulsor da nave gerada via código (sem uso de sprites estáticos para o fogo).
-
-Controles Híbridos: Jogue usando o teclado ou o mouse.
-
-🛠 Pré-requisitos e Instalação
-
-Para executar o jogo, você precisa ter o Python 3 instalado.
-
-1. Clonar o Repositório
-
-git clone [https://github.com/Wagnerf25/SpaceEscapeGame.git](https://github.com/Wagnerf25/SpaceEscapeGame.git)
-cd SpaceEscapeGame
-
-
-2. Instalar Dependências
-
-O jogo utiliza apenas a biblioteca pygame.
-
-pip install pygame
-
-
-3. Configurar Assets
-
-Certifique-se de que a pasta assets esteja no mesmo diretório do script main.py e contenha todos os recursos (imagens e sons) necessários.
-
-4. Executar o Jogo
-
-python main.py
-
-
-🎮 Como Jogar
-
-O objetivo é sobreviver e destruir meteoros. Você tem 3 vidas.
-
-Controles
-
-Ação
-
-Teclado
-
-Mouse
-
-Mover Nave
-
-Setas ⬅️ e ➡️
-
-Mover cursor horizontalmente
-
-Mover Rápido
-
--
-
-Segurar Botão Esquerdo
-
-Atirar
-
-ESPAÇO
-
--
-
-Confirmar
-
-ENTER
-
-Clique nos botões
-
-Pausar/Sair
-
-ESC
-
-Botão na tela
-
-Pontuação
-
-+1 Ponto: Sobreviver a um meteoro (quando ele sai da tela).
-
-+5 Pontos: Destruir um meteoro com laser.
-
-⚙️ Mecânicas e Fases
-
-O jogo evolui automaticamente conforme sua pontuação:
-
-🌑 Fase 1: Início
-
-Meta: Chegar a 30 pontos.
-
-Inimigos: 5 meteoros simultâneos.
-
-Comportamento: Queda vertical simples.
-
-Velocidade: Lenta.
-
-🌘 Fase 2: Aceleração
-
-Meta: Chegar a 150 pontos.
-
-Inimigos: 7 meteoros simultâneos.
-
-Novo Comportamento: Meteoros aceleram enquanto caem.
-
-Velocidade: Média.
-
-🌕 Fase 3: Caos (Loop Infinito)
-
-Meta: Sobreviver o máximo possível.
-
-Inimigos: 10 meteoros simultâneos.
-
-Novo Comportamento: Movimento em Zig-Zag (senoidal) e aceleração.
-
-Velocidade: Rápida.
-
-📂 Estrutura de Arquivos
-
-SpaceEscapeGame/
-│
-├── main.py              # Código fonte principal
-├── ranking.txt          # Arquivo de persistência de pontuação (gerado automaticamente)
-├── README.md            # Documentação do projeto
-└── assets/              # Pasta obrigatória com imagens e sons
-    ├── fundo_espacial.png
-    ├── nave001.png
-    ├── meteoro001.png
-    ├── ...
-
-
-👨‍💻 Autor
-
-<table align="center">
-<tr>
-<td align="center">
-<a href="https://www.google.com/search?q=https://github.com/Wagnerf25">
-<img src="https://www.google.com/search?q=https://github.com/Wagnerf25.png" width="100px;" alt="Foto de Wagner Reis"/>
-
-
-
-
-<sub><b>Wagner Reis Figueiredo</b></sub>
-</a>
-</td>
-</tr>
-</table>
-
-Desenvolvido como referência para implementação de jogos em Python.
-
-Este projeto é de código aberto. Sinta-se à vontade para contribuir ou usar como base para estudos.
+from pathlib import Path
+import pygame
+import random
+import os
+import math
+
+pygame.init()
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+pygame.display.set_caption("🚀 Space Escape - 3 Fases")
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
+
+_FONT_CACHE = {}
+def get_font(size):
+    if size not in _FONT_CACHE:
+        _FONT_CACHE[size] = pygame.font.Font(None, size)
+    return _FONT_CACHE[size]
+
+# --- Robustez: Inicialização Segura de Áudio ---
+AUDIO_AVAILABLE = False
+try:
+    pygame.mixer.init()
+    AUDIO_AVAILABLE = True
+except pygame.error as e:
+    print(f"Aviso: Mixer de áudio não pôde ser inicializado: {e}")
+
+# --- Legibilidade: Caminhos de Assets ---
+# Para funcionar, crie uma pasta "assets" e mova todos os seus arquivos de imagem/som para dentro dela.
+ASSETS_DIR = Path(__file__).parent / "assets"
+
+# Garante que a pasta assets existe, senão usa o diretório atual como fallback
+if not ASSETS_DIR.exists():
+    ASSETS_DIR = Path(__file__).parent
+
+ASSETS = {
+    "background1": "fundo_espacial.png",
+    "background2": "fundo_espacial2.png",
+    "background3": "fundo_espacial3.png",
+    "player": "nave001.png",
+    "meteor1": "meteoro001.png",
+    "meteor2": "meteoro002.png",
+    "meteor3": "meteoro003.png",
+    "meteor_special": "meteoroespecial.png",
+    "meteor_invincibility": "meteorovermelho.png",
+    "laserbeam": "laserbeam.png",
+    "gameover": "Game-over.png",
+    "insertcoin": "insertcoin.png",
+    "sound_point": "classic-game-action-positive-5-224402.mp3",
+    "sound_hit": "stab-f-01-brvhrtz-224599.mp3",
+    "music1": "distorted-future-363866.mp3",
+    "music2": "ThemeSpace2.mp3",
+    "music3": "ThemeSpace3.mp3"
+}
+
+WHITE = (255, 255, 255)
+RED = (255, 60, 60)
+BLUE = (60, 100, 255)
+
+def load_image(filename, fallback_color, size=None):
+    path = ASSETS_DIR / filename
+    if path.exists():
+        try:
+            img = pygame.image.load(str(path)).convert_alpha()
+            if size:
+                img = pygame.transform.scale(img, size)
+            return img
+        except (pygame.error, OSError) as e:
+            print(f"Aviso: Não foi possível carregar imagem '{path}': {e}")
+    surf = pygame.Surface(size or (50, 50), pygame.SRCALPHA)
+    surf.fill(fallback_color)
+    return surf
+
+def load_sound(filename):
+    if not AUDIO_AVAILABLE or not filename:
+        return None
+    path = ASSETS_DIR / filename
+    if path.exists():
+        try:
+            return pygame.mixer.Sound(str(path))
+        except (pygame.error, OSError) as e:
+            print(f"Aviso: Não foi possível carregar som '{path}': {e}")
+    return None
+
+def try_play_music(filename, volume=0.3):
+    if not AUDIO_AVAILABLE or not filename:
+        return False
+    path = ASSETS_DIR / filename
+    try:
+        if path.exists():
+            pygame.mixer.music.load(str(path))
+            pygame.mixer.music.set_volume(volume)
+            pygame.mixer.music.play(-1)
+            return True
+    except (pygame.error, OSError) as e:
+        print(f"Aviso: Não foi possível carregar música '{path}': {e}")
+    return False
+
+def create_engine_frames():
+    """Criar frames de animação do motor da nave"""
+    frames = []
+    colors = [
+        (255, 200, 0),    # Amarelo
+        (255, 150, 0),    # Laranja
+        (255, 80, 0),     # Laranja-vermelho
+        (200, 40, 0)      # Vermelho escuro
+    ]
+    alpha_values = [100, 150, 200, 255]
+
+    for frame_idx in range(4):
+        engine_frame = pygame.Surface((40, 40), pygame.SRCALPHA)
+        engine_frame.fill((0, 0, 0, 0))
+
+        # Desenhar chamas em 3 camadas
+        for layer in range(3):
+            y_pos = 12 + (layer * 7)
+            width = int(20 - (layer * 3))
+            x_pos = (40 - width) // 2
+
+            color_with_alpha = (*colors[frame_idx], alpha_values[frame_idx])
+            pygame.draw.rect(engine_frame, color_with_alpha, (x_pos, y_pos, width, 6))
+
+        frames.append(engine_frame)
+
+    return frames
+
+def load_ranking():
+    """Carregar ranking do arquivo"""
+    ranking = []
+    if os.path.exists('ranking.txt'):
+        try:
+            with open('ranking.txt', 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        parts = line.split(',')
+                        if len(parts) == 2:
+                            try:
+                                name, score = parts[0].strip(), int(parts[1].strip())
+                                ranking.append((name, score))
+                            except ValueError:
+                                print(f"Aviso: Linha inválida no ranking: {line}")
+                                continue
+        except IOError as e:
+            print(f"Aviso: Não foi possível ler ranking.txt: {e}")
+    return ranking
+
+def save_ranking(ranking):
+    """Salvar ranking no arquivo"""
+    try:
+        with open('ranking.txt', 'w', encoding='utf-8') as f:
+            for name, score in ranking:
+                f.write(f"{name},{score}\n")
+    except IOError as e:
+        print(f"Erro: Não foi possível salvar ranking: {e}")
+
+def add_to_ranking(name, score):
+    """Adicionar jogador ao ranking"""
+    # Validação de entrada
+    name = name.strip().upper()
+    if not name or not isinstance(score, int):
+        # Se entrada for inválida, retorna ranking atual sem modificar
+        return load_ranking()
+
+    ranking = load_ranking()
+    ranking.append((name, score))
+    ranking.sort(key=lambda x: x[1], reverse=True)
+    ranking = ranking[:10]  # Manter apenas os top 10
+    save_ranking(ranking)
+    return ranking
+
+background_imgs = {
+    1: load_image(ASSETS["background1"], (10, 10, 30), (WIDTH, HEIGHT)),
+    2: load_image(ASSETS["background2"], (8, 8, 25), (WIDTH, HEIGHT)),
+    3: load_image(ASSETS["background3"], (6, 6, 20), (WIDTH, HEIGHT))
+}
+
+player_img = load_image(ASSETS["player"], BLUE, (80, 60))
+meteor_imgs = [
+    load_image(ASSETS["meteor1"], RED, (40, 40)),
+    load_image(ASSETS["meteor2"], RED, (40, 40)),
+    load_image(ASSETS["meteor3"], RED, (40, 40))
+]
+meteor_special_img = load_image(ASSETS["meteor_special"], (255, 100, 0), (50, 50))
+meteor_invincibility_img = load_image(ASSETS["meteor_invincibility"], (255, 0, 0), (45, 45))
+laserbeam_img = load_image(ASSETS["laserbeam"], (0, 255, 0), (10, 30))
+gameover_img = load_image(ASSETS["gameover"], (0, 0, 0), (WIDTH, HEIGHT))
+insertcoin_img = load_image(ASSETS["insertcoin"], (0, 0, 0), (WIDTH, HEIGHT))
+
+sound_point = load_sound(ASSETS["sound_point"])
+sound_hit = load_sound(ASSETS["sound_hit"])
+
+# Criar frames de animação do motor
+engine_frames = create_engine_frames()
+
+class Player:
+    def __init__(self):
+        self.image = player_img
+        self.rect = self.image.get_rect(center=(WIDTH // 2, HEIGHT - 60))
+        self.speed = 7
+        self.lasers = []
+        self.shoot_cooldown = 0
+        self.invincible = False
+        self.invincible_timer = 0
+        self.invincible_duration = 300  # 5 segundos a 60 FPS
+        # Animação do motor
+        self.engine_frame_index = 0
+        self.engine_frame_counter = 0
+        self.engine_animation_speed = 2  # Velocidade de animação do motor
+
+    def update(self, keys):
+        # Movimento com teclado
+        if keys[pygame.K_LEFT] and self.rect.left > 0:
+            self.rect.x -= self.speed
+        if keys[pygame.K_RIGHT] and self.rect.right < WIDTH:
+            self.rect.x += self.speed
+
+        # Movimento com mouse
+        mx, _ = pygame.mouse.get_pos()
+        if pygame.mouse.get_pressed()[0]:
+            self.rect.centerx = max(self.rect.width // 2, min(mx, WIDTH - self.rect.width // 2))
+        elif abs(self.rect.centerx - mx) > 4:
+            if self.rect.centerx < mx:
+                self.rect.centerx = min(self.rect.centerx + self.speed, WIDTH - self.rect.width // 2)
+            elif self.rect.centerx > mx:
+                self.rect.centerx = max(self.rect.centerx - self.speed, self.rect.width // 2)
+
+        # Disparar com SPACE
+        if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
+            self.shoot()
+            self.shoot_cooldown = 10
+
+        # Otimização: Decrementar cooldown apenas se necessário
+        if self.shoot_cooldown > 0:
+            self.shoot_cooldown -= 1
+
+        # Atualizar invencibilidade
+        if self.invincible:
+            self.invincible_timer -= 1
+            if self.invincible_timer <= 0:
+                self.invincible = False
+
+        # Atualizar animação do motor
+        self.engine_frame_counter += 1
+        if self.engine_frame_counter >= self.engine_animation_speed:
+            self.engine_frame_index = (self.engine_frame_index + 1) % len(engine_frames)
+            self.engine_frame_counter = 0
+
+        # Atualizar lasers
+        for laser in self.lasers[:]:
+            laser.update()
+            if laser.rect.y < 0:
+                self.lasers.remove(laser)
+
+    def shoot(self):
+        laser = Laser(self.rect.centerx - 5, self.rect.top)
+        self.lasers.append(laser)
+
+    def activate_invincibility(self):
+        self.invincible = True
+        self.invincible_timer = self.invincible_duration
+
+    def draw(self, surf):
+        # Desenhar nave com efeito piscante se invencível
+        if self.invincible and (self.invincible_timer // 10) % 2 == 0:
+            img = self.image.copy()
+            img.fill((255, 255, 255, 128), special_flags=pygame.BLEND_RGBA_MULT)
+            surf.blit(img, self.rect)
+        else:
+            surf.blit(self.image, self.rect)
+
+        # Desenhar animação do motor abaixo da nave
+        engine_img = engine_frames[self.engine_frame_index]
+        engine_rect = engine_img.get_rect(centerx=self.rect.centerx, top=self.rect.bottom - 5)
+        surf.blit(engine_img, engine_rect)
+
+        for laser in self.lasers:
+            laser.draw(surf)
+
+class Laser:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 10, 30)
+        self.speed = 10
+
+    def update(self):
+        self.rect.y -= self.speed
+
+    def draw(self, surf):
+        # Otimização: Não escalar a imagem a cada quadro
+        surf.blit(laserbeam_img, self.rect)
+
+class Button:
+    def __init__(self, x, y, width, height, text, color=(100, 100, 255), text_color=(255, 255, 255)):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.text_color = text_color
+        self.hover_color = (150, 150, 255)
+        self.is_hovered = False
+
+    def draw(self, surf):
+        color = self.hover_color if self.is_hovered else self.color
+        pygame.draw.rect(surf, color, self.rect)
+        pygame.draw.rect(surf, WHITE, self.rect, 3)  # Bordas
+
+        # Otimização: Usar cache de fontes
+        font_btn = get_font(32)
+        txt = font_btn.render(self.text, True, self.text_color)
+        txt_rect = txt.get_rect(center=self.rect.center)
+        surf.blit(txt, txt_rect)
+
+    def is_clicked(self, pos):
+        return self.rect.collidepoint(pos)
+
+    def update_hover(self, pos):
+        self.is_hovered = self.rect.collidepoint(pos)
+
+class TextInput:
+    def __init__(self, x, y, width, height, max_length=15):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = ""
+        self.max_length = max_length
+        self.active = False  # Melhoria: Iniciar inativo
+        self.cursor_visible = True
+        self.cursor_timer = 0
+
+    def handle_event(self, event):
+        # Melhoria: Ativar/desativar com clique do mouse
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.active = self.rect.collidepoint(event.pos)
+
+        if not self.active:
+            return False
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_RETURN:
+                return True  # Confirmar entrada
+            elif len(self.text) < self.max_length:
+                # Aceitar apenas caracteres alfanuméricos e alguns símbolos
+                if event.unicode.isprintable() and event.unicode not in '\t\n\r':
+                    self.text += event.unicode.upper()
+        return False
+
+    def update(self):
+        self.cursor_timer += 1
+        if self.cursor_timer >= 30:
+            self.cursor_visible = not self.cursor_visible
+            self.cursor_timer = 0
+
+    def draw(self, surf):
+        # Desenhar caixa de entrada
+        pygame.draw.rect(surf, (50, 50, 50), self.rect)
+        pygame.draw.rect(surf, WHITE, self.rect, 3)
+
+        # Desenhar texto
+        # Otimização: Usar cache de fontes
+        font_input = get_font(40)
+        txt = font_input.render(self.text if self.text else "___", True, WHITE)
+        txt_rect = txt.get_rect(center=self.rect.center)
+        surf.blit(txt, txt_rect)
+
+        # Desenhar cursor
+        if self.cursor_visible and self.active:
+            cursor_x = txt_rect.right + 5 if self.text else self.rect.centerx
+            pygame.draw.line(surf, WHITE, (cursor_x, self.rect.top + 10), (cursor_x, self.rect.bottom - 10), 2)
+
+class Meteor:
+    def __init__(self, x, y, w, h, speed, images, behavior=None):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.speed = speed
+        self.behavior = behavior
+        self.images = images  # Otimização: Usar imagens pré-escaladas
+        self._phase = random.uniform(0, math.pi * 2)
+        self._amp = random.randint(30, 80)
+        self._hz = random.uniform(0.01, 0.04)
+        # Animação do sprite
+        self.frame_index = 0
+        self.frame_counter = 0
+        self.animation_speed = 5  # Número de updates antes de trocar frame
+
+    def update(self):
+        if self.behavior == 'zigzag':
+            self._phase += self._hz
+            self.rect.x += int(math.sin(self._phase) * 3)
+            # Manter dentro dos limites da tela
+            self.rect.x = max(0, min(self.rect.x, WIDTH - self.rect.width))
+        elif self.behavior == 'accelerate':
+            self.speed += 0.02
+        self.rect.y += int(self.speed)
+
+        # Atualizar animação
+        self.frame_counter += 1
+        if self.frame_counter >= self.animation_speed:
+            self.frame_index = (self.frame_index + 1) % len(self.images)
+            self.frame_counter = 0
+
+    def reset(self):
+        self.rect.y = random.randint(-500, -40)
+        self.rect.x = random.randint(0, WIDTH - self.rect.width)
+        self._phase = random.uniform(0, math.pi * 2)
+        self.frame_index = 0
+        self.frame_counter = 0
+
+    def draw(self, surf):
+        # Otimização: Desenhar imagem pré-escalada
+        surf.blit(self.images[self.frame_index], self.rect)
+
+class MeteorSpecial:
+    def __init__(self, x, y, w, h, speed):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.speed = speed
+        self.active = False
+        self.spawn_timer = 0
+        self.spawn_interval = 180  # 3 segundos a 60 FPS
+        self.is_falling = False
+
+    def update(self):
+        if not self.is_falling:
+            self.spawn_timer += 1
+            if self.spawn_timer >= self.spawn_interval:
+                self.spawn_timer = 0
+                self.is_falling = True
+                self.rect.y = -self.rect.height
+                self.rect.x = random.randint(0, WIDTH - self.rect.width)
+        else:
+            self.rect.y += int(self.speed)
+            if self.rect.y > HEIGHT:
+                self.is_falling = False
+
+    def reset(self):
+        self.is_falling = False
+        self.spawn_timer = 0
+
+    def draw(self, surf):
+        if self.is_falling:
+            img = pygame.transform.scale(meteor_special_img, (self.rect.width, self.rect.height))
+            surf.blit(img, self.rect)
+
+class MeteorInvincibility:
+    def __init__(self, x, y, w, h, speed):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.speed = speed
+        self.spawn_timer = 0
+        self.spawn_interval = 300  # 5 segundos a 60 FPS
+        self.is_falling = False
+
+    def update(self):
+        if not self.is_falling:
+            self.spawn_timer += 1
+            if self.spawn_timer >= self.spawn_interval:
+                self.spawn_timer = 0
+                self.is_falling = True
+                self.rect.y = -self.rect.height
+                self.rect.x = random.randint(0, WIDTH - self.rect.width)
+        else:
+            self.rect.y += int(self.speed)
+            if self.rect.y > HEIGHT:
+                self.is_falling = False
+
+    def reset(self):
+        self.is_falling = False
+        self.spawn_timer = 0
+
+    def draw(self, surf):
+        if self.is_falling:
+            img = pygame.transform.scale(meteor_invincibility_img, (self.rect.width, self.rect.height))
+            surf.blit(img, self.rect)
+
+
+class PhaseConfig:
+    def __init__(self, id, bg, music, meteor_count, meteor_speed, meteor_size, required_score, behaviors=None):
+        self.id = id
+        self.bg = bg
+        self.music = music
+        self.meteor_count = meteor_count
+        self.meteor_speed = meteor_speed
+        self.meteor_size = meteor_size
+        self.required_score = required_score
+        self.behaviors = behaviors or []
+
+PHASES = {
+    1: PhaseConfig(1, background_imgs[1], ASSETS["music1"], 5, 5, (40, 40), 30, []),
+    2: PhaseConfig(2, background_imgs[2], ASSETS["music2"], 7, 7, (50, 50), 150, ['accelerate']),
+    3: PhaseConfig(3, background_imgs[3], ASSETS["music3"], 10, 9, (60, 60), 999, ['accelerate', 'zigzag'])
+}
+
+def create_meteors_for_phase(cfg):
+    lst = []
+    # Otimização: Pré-escalar imagens dos meteoros para a fase
+    scaled_meteor_imgs = [pygame.transform.scale(img, cfg.meteor_size) for img in meteor_imgs]
+    for _ in range(cfg.meteor_count):
+        w, h = cfg.meteor_size
+        x = random.randint(0, WIDTH - w)
+        y = random.randint(-500, -40)
+        behavior = None
+        if cfg.behaviors and random.random() < 0.35:
+            behavior = random.choice(cfg.behaviors)
+        lst.append(Meteor(x, y, w, h, cfg.meteor_speed, scaled_meteor_imgs, behavior))
+    return lst
+
+player = Player()
+current_phase = 1
+score = 0
+lives = 3
+state = 'menu'  # Mudar para 'menu' como estado inicial
+phase_cfg = PHASES[current_phase]
+meteors = create_meteors_for_phase(phase_cfg)
+meteor_special = MeteorSpecial(0, 0, 50, 50, 6)
+meteor_invincibility = MeteorInvincibility(0, 0, 45, 45, 4)
+try_play_music(phase_cfg.music)
+transition_timer = 0
+transition_duration = 90
+
+# Botões de game over
+btn_restart = Button(WIDTH//2 - 150, HEIGHT - 120, 140, 50, "REINICIAR")
+btn_exit = Button(WIDTH//2 + 10, HEIGHT - 120, 140, 50, "SAIR")
+
+# Botão de insert coin
+btn_insert_coin = Button(WIDTH//2 - 80, HEIGHT - 100, 160, 60, "INSERT COIN", (255, 100, 0), (255, 255, 255))
+
+# Input de nome para ranking
+text_input = TextInput(WIDTH//2 - 100, HEIGHT//2, 200, 50)
+
+# Variável para armazenar o ranking
+current_ranking = load_ranking()
+
+running = True
+
+while running:
+    clock.tick(FPS)
+    keys = pygame.key.get_pressed()
+    mouse_pos = pygame.mouse.get_pos()
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if state == 'menu':
+                if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                    # Iniciar o jogo
+                    state = 'playing'
+                    if AUDIO_AVAILABLE:
+                        pygame.mixer.music.stop()
+                        try_play_music(phase_cfg.music)
+            elif state == 'gameover':
+                if event.key == pygame.K_SPACE:
+                    # Reiniciar o jogo
+                    player = Player()
+                    current_phase = 1
+                    score = 0
+                    lives = 3
+                    phase_cfg = PHASES[current_phase]
+                    meteors = create_meteors_for_phase(phase_cfg)
+                    meteor_special.reset()
+                    meteor_invincibility.reset()
+                    text_input.text = ""  # Limpar input de nome
+                    if AUDIO_AVAILABLE:
+                        try_play_music(phase_cfg.music)
+                    state = 'playing'
+                elif event.key == pygame.K_ESCAPE:
+                    running = False
+            elif state == 'name_input':
+                confirmed = text_input.handle_event(event)
+                if confirmed and text_input.text:
+                    # Adicionar ao ranking
+                    current_ranking = add_to_ranking(text_input.text, score)
+                    text_input.text = ""
+                    state = 'gameover'
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # Melhoria: Passar evento de clique para o TextInput
+            if state == 'name_input':
+                text_input.handle_event(event)
+
+            if state == 'menu':
+                if btn_insert_coin.is_clicked(mouse_pos):
+                    # Iniciar o jogo
+                    state = 'playing'
+                    if AUDIO_AVAILABLE:
+                        pygame.mixer.music.stop()
+                        try_play_music(phase_cfg.music)
+            elif state == 'gameover':
+                if btn_restart.is_clicked(mouse_pos):
+                    # Reiniciar o jogo
+                    player = Player()
+                    current_phase = 1
+                    score = 0
+                    lives = 3
+                    phase_cfg = PHASES[current_phase]
+                    meteors = create_meteors_for_phase(phase_cfg)
+                    meteor_special.reset()
+                    meteor_invincibility.reset()
+                    if AUDIO_AVAILABLE:
+                        try_play_music(phase_cfg.music)
+                    state = 'playing'
+                elif btn_exit.is_clicked(mouse_pos):
+                    running = False
+
+    if state == 'playing':
+        player.update(keys)
+
+        for m in meteors:
+            m.update()
+            if m.rect.y > HEIGHT:
+                m.reset()
+                score += 1
+                if sound_point:
+                    sound_point.play()
+            if m.rect.colliderect(player.rect):
+                if not player.invincible:
+                    lives -= 1
+                    m.reset()
+                    if sound_hit:
+                        sound_hit.play()
+                    if lives <= 0:
+                        state = 'name_input'  # Mudar para entrada de nome
+                        if AUDIO_AVAILABLE:
+                            pygame.mixer.music.stop()
+                else:
+                    m.reset()
+
+            # Colisão entre laser e meteoro
+            for laser in player.lasers[:]:
+                if laser.rect.colliderect(m.rect):
+                    player.lasers.remove(laser)
+                    m.reset()
+                    score += 5
+                    if sound_point:
+                        sound_point.play()
+                    break
+
+        # Atualizar meteoro especial
+        meteor_special.update()
+        if meteor_special.is_falling and meteor_special.rect.colliderect(player.rect):
+            # Meteoro especial causa morte instantânea
+            lives = 0
+            state = 'name_input'  # Mudar para entrada de nome
+            if AUDIO_AVAILABLE:
+                pygame.mixer.music.stop()
+            if sound_hit:
+                sound_hit.play()
+
+        # Atualizar meteoro de invencibilidade
+        meteor_invincibility.update()
+        if meteor_invincibility.is_falling and meteor_invincibility.rect.colliderect(player.rect) and not player.invincible:
+            # Ativar invencibilidade por 5 segundos
+            player.activate_invincibility()
+            meteor_invincibility.reset()
+            if sound_point:
+                sound_point.play()
+
+        if PHASES[current_phase].required_score and score >= PHASES[current_phase].required_score:
+            state = 'transition'
+            transition_timer = 0
+
+    elif state == 'transition':
+        transition_timer += 1
+        if transition_timer == 1 and AUDIO_AVAILABLE:
+            pygame.mixer.music.fadeout(500)
+        if transition_timer >= transition_duration:
+            current_phase += 1
+            if current_phase > 3:
+                current_phase = 3
+            phase_cfg = PHASES[current_phase]
+            meteors = create_meteors_for_phase(phase_cfg)
+            meteor_special.reset()
+            meteor_invincibility.reset()
+            if AUDIO_AVAILABLE:
+                try_play_music(phase_cfg.music)
+            state = 'playing'
+
+    # Renderização da tela de menu
+    if state == 'menu':
+        screen.blit(insertcoin_img, (0, 0))
+
+        # Atualizar e desenhar botão INSERT COIN
+        btn_insert_coin.update_hover(mouse_pos)
+        btn_insert_coin.draw(screen)
+
+        # Mensagem adicional
+        txt_info = get_font(28).render("ou pressione SPACE para começar", True, WHITE)
+        screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT - 40))
+
+    # Renderização do jogo
+    elif state in ['playing', 'transition', 'gameover', 'name_input']:
+        screen.blit(PHASES[current_phase].bg, (0, 0))
+        player.draw(screen)
+        for m in meteors:
+            m.draw(screen)
+        meteor_special.draw(screen)
+        meteor_invincibility.draw(screen)
+
+        hud = get_font(36).render(f"Pontos: {score}   Vidas: {lives}   Fase: {current_phase}", True, WHITE)
+        screen.blit(hud, (10, 10))
+
+    if state == 'transition':
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        screen.blit(overlay, (0, 0))
+        big = get_font(72)
+        txt = big.render(f"Fase {current_phase + 1}", True, WHITE)
+        screen.blit(txt, (WIDTH//2 - txt.get_width()//2, HEIGHT//2 - 40))
+
+    if state == 'name_input':
+        # Tela de entrada de nome
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        screen.blit(overlay, (0, 0))
+
+        # Título
+        big = get_font(60)
+        txt_title = big.render("GAME OVER", True, RED)
+        screen.blit(txt_title, (WIDTH//2 - txt_title.get_width()//2, HEIGHT//2 - 150))
+
+        # Pontuação
+        txt_score = get_font(36).render(f"Pontuação: {score}", True, WHITE)
+        screen.blit(txt_score, (WIDTH//2 - txt_score.get_width()//2, HEIGHT//2 - 60))
+
+        # Label para entrada de nome
+        txt_label = get_font(32).render("Digite seu nome:", True, WHITE)
+        screen.blit(txt_label, (WIDTH//2 - txt_label.get_width()//2, HEIGHT//2 + 20))
+
+        # Input de nome
+        text_input.update()
+        text_input.draw(screen)
+
+        # Instrução
+        txt_info = get_font(24).render("Pressione ENTER para confirmar", True, WHITE)
+        screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT//2 + 120))
+
+    if state == 'gameover':
+        # Exibir imagem de game over
+        screen.blit(gameover_img, (0, 0))
+
+        # Adicionar informações finais
+        big = get_font(48)
+        txt_score = big.render(f"Pontuação Final: {score}", True, WHITE)
+        txt_phase = big.render(f"Fase Alcançada: {current_phase}", True, WHITE)
+
+        # Posicionar textos no centro da tela
+        screen.blit(txt_score, (WIDTH//2 - txt_score.get_width()//2, HEIGHT//2 - 80))
+        screen.blit(txt_phase, (WIDTH//2 - txt_phase.get_width()//2, HEIGHT//2 - 20))
+
+        # Exibir ranking
+        ranking_font = get_font(24)
+        ranking_y = 180
+        ranking_title = get_font(32).render("TOP 10 RANKING", True, WHITE)
+        screen.blit(ranking_title, (WIDTH//2 - ranking_title.get_width()//2, ranking_y - 40))
+
+        for idx, (name, points) in enumerate(current_ranking[:10], 1):
+            ranking_text = ranking_font.render(f"{idx:2d}. {name:15s} - {points:6d}", True, WHITE)
+            screen.blit(ranking_text, (WIDTH//2 - ranking_text.get_width()//2, ranking_y + (idx * 25)))
+
+        # Atualizar e desenhar botões
+        btn_restart.update_hover(mouse_pos)
+        btn_exit.update_hover(mouse_pos)
+        btn_restart.draw(screen)
+        btn_exit.draw(screen)
+
+        # Mensagem adicional
+        txt_info = get_font(28).render("ou pressione SPACE/ESC", True, WHITE)
+        screen.blit(txt_info, (WIDTH//2 - txt_info.get_width()//2, HEIGHT - 30))
+
+    pygame.display.flip()
+
+pygame.quit()
